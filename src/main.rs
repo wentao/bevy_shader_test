@@ -2,11 +2,15 @@ use std::f32::consts::PI;
 
 use bevy::core::FrameCount;
 use bevy::core_pipeline::bloom::BloomSettings;
+use bevy::core_pipeline::prepass::DepthPrepass;
 use bevy::core_pipeline::tonemapping::Tonemapping;
+use bevy::ecs::system::Command;
 use bevy::log::LogPlugin;
+use bevy::pbr::NotShadowCaster;
 use bevy::prelude::*;
 use bevy::render::camera::Exposure;
 use bevy::window::*;
+use itertools::Itertools;
 use shield::ShieldMaterial;
 
 mod shield;
@@ -40,7 +44,10 @@ fn main() {
                     filter: "info,wgpu=error,winit=error".into(),
                     level: bevy::log::Level::INFO,
                 }),
-            MaterialPlugin::<ShieldMaterial>::default(),
+            MaterialPlugin::<ShieldMaterial> {
+                prepass_enabled: false,
+                ..default()
+            },
         ))
         .add_systems(Startup, setup)
         .add_systems(Update, (close_on_esc, make_visible, rotate))
@@ -66,6 +73,7 @@ fn setup(
                 .looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         },
+        DepthPrepass,
         BloomSettings::default(),
     ));
     commands.spawn(DirectionalLightBundle {
@@ -82,15 +90,18 @@ fn setup(
         ..default()
     });
 
-    commands.spawn((
-        MaterialMeshBundle {
-            mesh: meshes.add(Sphere::new(2.0).mesh().ico(2).unwrap()),
-            transform: Transform::from_scale(Vec3::splat(4.0)),
-            material: materials.add(ShieldMaterial {}),
-            ..default()
-        },
-        Object,
-    ));
+    let material = materials.add(ShieldMaterial {
+        alpha_mode: AlphaMode::Add,
+    });
+    let num_ferris = 20;
+    for (z, x) in (0..num_ferris).cartesian_product(0..num_ferris) {
+        let transform = Transform::from_scale(Vec3::splat(4.0));
+        commands.add(SpawnShieldedFerris {
+            transform,
+            shield: meshes.add(Sphere::new(2.0).mesh().ico(2).unwrap()),
+            shield_material: material.clone(),
+        });
+    }
 }
 
 fn make_visible(mut window: Query<&mut Window>, frames: Res<FrameCount>) {
@@ -105,5 +116,26 @@ struct Object;
 fn rotate(mut q: Query<&mut Transform, With<Object>>) {
     for mut t in q.iter_mut() {
         t.rotate(Quat::from_rotation_x(0.01));
+    }
+}
+
+pub struct SpawnShieldedFerris {
+    pub transform: Transform,
+    pub shield: Handle<Mesh>,
+    pub shield_material: Handle<ShieldMaterial>,
+}
+
+impl Command for SpawnShieldedFerris {
+    fn apply(self, world: &mut World) {
+        world
+            .spawn(MaterialMeshBundle {
+                mesh: self.shield,
+                material: self.shield_material,
+                transform: self.transform.clone(),
+                visibility: Visibility::Visible,
+                ..default()
+            })
+            .insert(NotShadowCaster)
+            .insert(Object);
     }
 }
