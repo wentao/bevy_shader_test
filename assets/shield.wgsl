@@ -82,6 +82,8 @@ fn simplex_noise_3d(v: vec3<f32>) -> f32 {
   return 42. * dot(m * m, vec4<f32>(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
 }
 
+// copy from https://github.com/rust-adventure/bevy-examples/blob/3af65d31c9da0b493ff2019dfd05974abd75850f/examples/shield-with-depth/assets/shaders/custom_material.wgsl
+
 // mostly a clone of bevy_pbr::forward_io::VertexOutput
 // so that we can add the extra fields
 struct VertexOutput {
